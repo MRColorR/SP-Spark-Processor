@@ -58,7 +58,7 @@ public class SparkIoTProcessor {
 					
 					String row = rawRecord._2;
 					StringTokenizer sToken = new StringTokenizer(row, ",");
-					System.out.println(sToken.countTokens());
+					
 					if (sToken.countTokens() == 7) {
 						String region = sToken.nextToken();
 						String country = sToken.nextToken();
