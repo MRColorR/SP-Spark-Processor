@@ -31,79 +31,65 @@ import kafka.serializer.StringDecoder;
 public class SparkIoTProcessor {
 
 	public static void main(String[] args) throws IOException, InterruptedException {
-		
+
 		System.out.println("Spark Streaming started now .....");
 
-		//.set('spark.cassandra.connection.host', 'localhost:9042')
-		SparkConf conf = new SparkConf().setAppName("kafka-sandbox")
-				.setMaster("local[*]");
-				//.set("spark.cassandra.connection.host", "127.0.0.1")
-				//.set("spark.cassandra.connection.port", "9042")
-				//.set("spark.cassandra.connection.timeout_ms", "5000");
+		SparkConf conf = new SparkConf().setAppName("kafka-sandbox").setMaster("local[*]");
 		JavaSparkContext sc = new JavaSparkContext(conf);
-		
-		//JavaRDD<String> cassandraRowsRDD = javaFunctions(sc).cassandraTable("test", "temperatura", CassandraJavaUtil.mapColumnTo(String.class)).select("country");
-		
-		
-		// batchDuration - The time interval at which streaming data will be divided into batches
-		JavaStreamingContext ssc = new JavaStreamingContext(sc, new Duration(20000));
-		
-		//JavaRDD<String> cassandraRowsRDD = javaFunctions(sc).cassandraTable("test", "temperatura", mapColumnTo(String.class)).select("country");
 
+		// batchDuration - The time interval at which streaming data will be divided
+		// into batches
+		JavaStreamingContext ssc = new JavaStreamingContext(sc, new Duration(5000));
+
+		// kafka setup
 		Map<String, String> kafkaParams = new HashMap<String, String>();
 		kafkaParams.put("metadata.broker.list", "127.0.0.1:9092");
 		Set<String> topics = Collections.singleton("test1");
-		/*
-		List<Temperatura> allRecord = new ArrayList<Temperatura>();
-		Temperatura t = new Temperatura("a", (float) 0.2, "ciaone");
-		allRecord.add(t);
-		JavaRDD<Temperatura> rdd2 = sc.parallelize(allRecord);
-		CassandraJavaUtil.javaFunctions(rdd2).writerBuilder("test", "temperatura", CassandraJavaUtil.mapToRow(Temperatura.class)).saveToCassandra();
-		*/
-
 		JavaPairInputDStream<String, String> directKafkaStream = KafkaUtils.createDirectStream(ssc, String.class,
 				String.class, StringDecoder.class, StringDecoder.class, kafkaParams, topics);
 
-		  //List<Temperatura> allRecord = new ArrayList<Temperatura>();
-		  final String COMMA = ",";
-		  directKafkaStream.foreachRDD(rdd -> {
-			  
-		  System.out.println("New data arrived  " + rdd.partitions().size() +" Partitions and " + rdd.count() + " Records");
-			  if(rdd.count() > 0) {
+		directKafkaStream.foreachRDD(rdd -> {
+
+			System.out.println(
+					"New data arrived  " + rdd.partitions().size() + " Partitions and " + rdd.count() + " Records");
+			if (rdd.count() > 0) {
 				List<Temperatura> allRecord = new ArrayList<Temperatura>();
 				rdd.collect().forEach(rawRecord -> {
-					  String riga = rawRecord._2;
-					  
-					  String[] dati = riga.split(",");
-					  //System.out.println(dati[0] + ((dati[6] == "AvgTemperature") ? "30" : dati[6]) + dati[1]);
-					  allRecord.add( new Temperatura(UUID.randomUUID().toString(), Float.parseFloat(dati[6]), dati[1]));
-					 /* 
-					  StringTokenizer st = new StringTokenizer(record,",");		  
-					  StringBuilder sb = new StringBuilder(); 
-					  while(st.hasMoreTokens()) {
-						 String region = st.nextToken();
-						 String country = st.nextToken();
-						 String city = st.nextToken();
-						 String mese = st.nextToken();
-						 String giorno = st.nextToken();
-						 String anno = st.nextToken();
-						 String average = st.nextToken();
-						 sb.append(region).append(COMMA).append(country).append(COMMA).append(city).append(COMMA).append(mese).append(COMMA).append(giorno).append(COMMA).append(anno).append(COMMA).append(average);
-						 allRecord.add(sb.toString());
-					  } */
-					  
-				  });
-				System.out.println("All records OUTER MOST :"+allRecord.size());
+					
+					String row = rawRecord._2;
+					StringTokenizer sToken = new StringTokenizer(row, ",");
+					System.out.println(sToken.countTokens());
+					if (sToken.countTokens() == 7) {
+						String region = sToken.nextToken();
+						String country = sToken.nextToken();
+						String city = sToken.nextToken();
+						String month = sToken.nextToken();
+						String day = sToken.nextToken();
+						String year = sToken.nextToken();
+						String date = day + "-" + month + "-" + year;
+						float avg = Float.parseFloat(sToken.nextToken());
+						
+						Temperatura newTemp = new Temperatura(UUID.randomUUID().toString(), region, country, city, date,avg);
+						allRecord.add(newTemp);
+					} else {
+						System.out.println("Formato dati errato");
+					}
+								
+
+					
+
+				});
+				System.out.println("All records OUTER MOST :" + allRecord.size());
 				JavaRDD<Temperatura> rdd2 = sc.parallelize(allRecord);
-				CassandraJavaUtil.javaFunctions(rdd2).writerBuilder("test", "temperatura", CassandraJavaUtil.mapToRow(Temperatura.class)).saveToCassandra();
+				CassandraJavaUtil.javaFunctions(rdd2)
+						.writerBuilder("iot", "temperature", CassandraJavaUtil.mapToRow(Temperatura.class))
+						.saveToCassandra();
 				System.out.println("dati caricati nel db");
-			  }
-		  });
-		 
+			}
+		});
+
 		ssc.start();
 		ssc.awaitTermination();
 	}
-	
 
 }
-
