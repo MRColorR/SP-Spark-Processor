@@ -1,4 +1,4 @@
-package bigdataman.Alessandro.SparkIoTProcessor;
+package bigdataman.IoT.SparkIoTProcessor;
 
 import junit.framework.Test;
 import junit.framework.TestCase;
